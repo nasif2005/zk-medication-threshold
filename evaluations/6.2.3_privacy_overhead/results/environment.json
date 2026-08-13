@@ -1,0 +1,11 @@
+{
+  "timestamp_utc": "2026-07-30T03:32:33.134986+00:00",
+  "platform": "Linux-6.8.0-1064-gcp-x86_64-with-glibc2.35",
+  "runs": 30,
+  "warmups": 5,
+  "baseline_iterations": 100000,
+  "zk_configuration": {
+    "k": 10,
+    "depth": 2
+  }
+}

@@ -1,0 +1,366 @@
+SECTION 6.3 PRIVACY QUANTIFICATION EXPERIMENT
+============================================================
+
+1. PURPOSE
+----------
+
+This experiment quantifies the privacy provided by three medication-threshold
+enforcement architectures:
+
+1. Centralized plaintext-history enforcement.
+2. Trusted encrypted-database enforcement.
+3. Proposed zk-SNARK hidden-state enforcement.
+
+All three architectures are evaluated using exactly the same generated patient
+histories. Consequently, differences in the privacy measurements arise from the
+information exposed by each architecture, rather than differences in their input
+populations.
+
+The experiment is separate from the Section 6.2.3 performance benchmark. It does
+not modify the existing performance code or previously reported latency results.
+
+
+2. MEDICATION POLICY AND FIXED PARAMETERS
+-----------------------------------------
+
+The experiment uses the following fixed policy and request parameters, matching
+the primary configuration evaluated in Section 6.2.3:
+
+- Bounded-history capacity, k: 10 entries
+- Medication identifier: 42
+- Current requested quantity, q_current: 10 quantity units
+- Current request time, T_current: 100 time units
+- Medication threshold, m_q: 60 quantity units
+- Rolling-window length, W: 30 time units
+
+An earlier dispensing event is active when its timestamp satisfies:
+
+    T_current - W < t_i <= T_current
+
+Under the selected parameters, this becomes:
+
+    70 < t_i <= 100
+
+The left boundary is strict. An event at time 70 is expired, whereas an event at
+time 71 is active.
+
+The request is authorized when the prior active-window quantity plus the current
+requested quantity does not exceed the threshold:
+
+    X + q_current <= m_q
+
+Because q_current = 10 and m_q = 60, the rule becomes:
+
+    X + 10 <= 60
+
+Therefore, requests with X <= 50 are authorized and requests with X > 50 are
+rejected. Equality with the medication threshold is permitted.
+
+
+3. COMMON SENSITIVE VARIABLE
+----------------------------
+
+The protected variable is the patient's total prior quantity within the active
+rolling window:
+
+    X = S_active
+      = sum_i q_i * 1[T_current - W < t_i <= T_current]
+
+Here, q_i and t_i are the quantity and timestamp of prior dispensing event i,
+and 1[condition] is one when the condition is true and zero otherwise.
+
+The experiment protects and predicts this scalar quantity rather than attempting
+to infer the complete ordered medication history. This makes the privacy metric
+directly relevant to the threshold decision and gives ALI, mutual information,
+and adversary success probability a common target.
+
+
+4. ADVERSARY AND TRUST MODEL
+----------------------------
+
+The experiment assumes an honest-but-curious internal observer. The observer
+performs the required enforcement operation correctly but uses everything visible
+inside its architectural trust boundary to infer X.
+
+The observer may know the public policy and request values and the authorization
+outcome. The observer does not compromise the patient-side application and does
+not break the encryption, commitment, hash, or zk-SNARK mechanisms.
+
+For the trusted encrypted-database architecture, the evaluated observer is inside
+the trusted evaluation/decryption boundary. Encryption at rest protects against
+an outside storage observer, but the trusted evaluator must decrypt the history
+to enforce the policy. Thus, that evaluator can calculate X exactly.
+
+For the proposed architecture, the observer is the Medication Enforcement
+Authority (MEA). The MEA receives the public proof statement and authorization
+outcome but does not receive the prior quantities or timestamps.
+
+
+5. OBSERVABLE VARIABLE FOR EACH ARCHITECTURE
+--------------------------------------------
+
+Let H represent the prior medication history, Z the fixed public policy/request
+context, and B the binary authorization outcome:
+
+    Z = (q_current, T_current, m_q, W, medication_id)
+
+    B = 1[X + q_current <= m_q]
+
+The evaluated observations are:
+
+Centralized plaintext enforcement:
+
+    Y_plain = (H, Z, B)
+
+The enforcement service directly receives the history and can compute X exactly.
+
+Trusted encrypted-database enforcement:
+
+    Y_encrypted = (H, Z, B)
+
+The records may be encrypted while stored, but the trusted evaluator observes the
+decrypted history during evaluation and can compute X exactly.
+
+Proposed zk-SNARK hidden-state enforcement:
+
+    Y_zk = (Z, B)
+
+The MEA observes the fixed public request and policy values and the authorization
+outcome, but not H or X.
+
+Cryptographic proofs, commitments, Merkle roots, and nullifiers are not inserted
+as raw categorical values into the empirical mutual-information estimator. Under
+the stated cryptographic assumptions, these values are opaque with respect to the
+private history. Because they are normally unique, treating their encodings as
+ordinary categories would make them act as sample identifiers and would produce
+a misleading empirical leakage estimate. Proof-specific confidentiality is instead
+supported by the zero-knowledge assumption.
+
+
+6. SHARED WORKLOAD GENERATION
+-----------------------------
+
+The default experiment generates 10,000 histories using pseudorandom seed
+20260813. The generator records the seed and all fixed parameters in
+workload/metadata.json.
+
+For every history:
+
+1. The number of active entries is sampled uniformly from 0 through 5.
+2. The number of expired entries is sampled from 0 through the smaller of 3 and
+   the remaining available capacity, while reserving at least one replaceable
+   empty slot.
+3. Each occupied entry receives an integer quantity sampled uniformly from 1
+   through 20.
+4. Active timestamps are sampled from 71 through 100.
+5. Expired timestamps are sampled from 1 through 70.
+6. Occupied entries are shuffled, and unused positions are encoded as (0, 0).
+7. X is calculated from the generated quantities and timestamps.
+8. B is calculated using X + 10 <= 60.
+
+The generated rows are saved once in workload/shared_histories.csv. All three
+architectural observations are derived from these same rows. No architecture
+receives a separately sampled or transformed input population.
+
+This workload is synthetic and is designed to exercise the privacy metrics. Its
+sampling distribution is not claimed to represent a clinical dispensing
+population.
+
+
+7. PRIVACY METRICS
+------------------
+
+7.1 Amount of Leaked Information (ALI)
+
+ALI uses one scalar-level disclosure unit. It records whether the exact selected
+sensitive value X is directly available to the observer:
+
+    ALI = 1, if exact X is directly disclosed or exactly computable from Y
+    ALI = 0, otherwise
+
+Under this definition, plaintext and trusted encrypted-database enforcement have
+ALI = 1. The zk-SNARK architecture has ALI = 0 because the MEA does not receive
+the history or exact active-window quantity.
+
+This is a scalar-level ALI definition, not a count of every disclosed history
+record or field.
+
+7.2 Mutual Information (MI)
+
+Empirical mutual information measures the statistical dependence between X and Y:
+
+    I(X;Y) = sum_x sum_y P(x,y) log2(P(x,y)/(P(x)P(y)))
+
+The probabilities are empirical frequencies over the complete shared workload.
+MI is reported in bits. Lower MI indicates that the observation reveals less
+information about X.
+
+Because the plaintext and trusted evaluators observe the history, X is a
+deterministic function of their observations. Their MI therefore equals the
+empirical entropy H(X).
+
+For the zk-SNARK architecture, all elements of Z are fixed in the primary
+experiment, so variation in Y_zk is caused only by B. Its measured leakage is
+therefore I(X;B), which cannot exceed one bit for a binary outcome.
+
+7.3 Expected Adversary Success Probability (ASP)
+
+ASP is the expected probability that an optimal empirical adversary correctly
+guesses the exact value of X after seeing Y:
+
+    ASP = sum_y P(y) max_x P(X=x | Y=y)
+
+The calculation aggregates over all observations in the workload, rather than a
+single successful proof or request.
+
+The prior-only guessing probability is also reported:
+
+    ASP_prior = max_x P(X=x)
+
+The inference advantage supplied by an architecture is:
+
+    ASP_advantage = ASP - ASP_prior
+
+Plaintext and trusted encrypted-database enforcement produce ASP = 1 because X is
+exactly computable from the observed history. For the zk-SNARK architecture, ASP
+is calculated by grouping histories according to the observed authorization
+outcome and choosing the most frequent X within each outcome group.
+
+
+8. EXECUTION PROCEDURE
+----------------------
+
+Run the complete experiment from the 6.3_privacy_quantification directory with:
+
+    python scripts/run_experiment.py
+
+The default command performs two steps:
+
+1. generate_workload.py creates the seeded common workload.
+2. analyze_privacy.py validates the workload, constructs each observer view,
+   computes the metrics, and joins the privacy results with available Section
+   6.2.3 performance measurements.
+
+The sample count and seed can be changed explicitly, for example:
+
+    python scripts/run_experiment.py --samples 20000 --seed 20260813
+
+
+9. VALIDATION AND REPRODUCIBILITY CHECKS
+----------------------------------------
+
+Before calculating metrics, the analysis verifies that:
+
+- every row uses the same public request and policy parameters;
+- each history contains exactly k = 10 quantities and timestamps;
+- the stored X equals the value recomputed from the history;
+- the stored authorization outcome equals the threshold rule;
+- the workload contains at least two distinct X values; and
+- both authorized and rejected observations are present.
+
+The default workload was regenerated with the recorded seed and produced an
+identical SHA-256 file hash, confirming deterministic reproduction in the current
+environment.
+
+
+10. DEFAULT EXPERIMENT RESULTS
+------------------------------
+
+The default seed and 10,000-sample configuration produced:
+
+- Distinct X values: 91
+- Minimum X: 0
+- Maximum X: 95
+- Authorized observations: 8,628
+- Rejected observations: 1,372
+- Empirical entropy H(X): 5.718815 bits
+- Prior-only ASP: 0.1679
+
+Architecture                         ALI     MI (bits)    Expected ASP
+-----------------------------------  ------  -----------  ------------
+Centralized plaintext                1       5.718815     1.0000
+Trusted encrypted database           1       5.718815     1.0000
+Proposed zk-SNARK hidden state        0       0.576859     0.1785
+
+The zk-SNARK ASP advantage over the prior-only guess is:
+
+    0.1785 - 0.1679 = 0.0106
+
+These results show that the plaintext and trusted evaluators completely learn X
+within the evaluated trust boundary. The MEA does not directly receive X. Its
+remaining measured information comes from the binary authorization outcome.
+
+
+11. PRIVACY-PERFORMANCE COMPARISON
+----------------------------------
+
+The analysis joins its privacy results with the mean processing times already
+reported in Section 6.2.3:
+
+- Centralized plaintext mean latency: 0.000002449548 seconds
+  (approximately 2.450 microseconds)
+- Proposed zk-SNARK mean end-to-end cryptographic latency: 4.339075 seconds
+- Trusted encrypted-database latency: not measured
+
+The trusted encrypted-database latency is explicitly recorded as not_measured.
+The experiment does not invent or interpolate a value that was not measured by
+the existing evaluation code.
+
+The comparison therefore demonstrates the measured trade-off between the very
+low latency and complete disclosure of plaintext enforcement and the substantially
+higher cryptographic latency but lower observer-side leakage of the proposed
+framework. A complete three-way performance comparison requires a separately
+implemented and measured trusted encrypted-database baseline.
+
+
+12. OUTPUT FILES
+----------------
+
+- workload/shared_histories.csv
+  The common generated histories and derived ground-truth X and B values.
+
+- workload/metadata.json
+  The seed, sample count, fixed parameters, and sensitive-variable definition.
+
+- results/architecture_observations.csv
+  The observation Y constructed for each architecture and every shared history.
+
+- results/privacy_metrics.csv
+  ALI, empirical MI, expected ASP, prior ASP, ASP advantage, H(X), and sample
+  count for each architecture.
+
+- results/privacy_performance_tradeoff.csv
+  The privacy metrics combined with the available Section 6.2.3 mean latencies.
+
+- results/summary.json
+  A machine-readable summary of the workload and results.
+
+
+13. INTERPRETATION LIMITATIONS
+------------------------------
+
+1. The generated histories are synthetic. Metric values depend on the selected
+   history distribution and should not be presented as population-level clinical
+   estimates.
+
+2. MI and ASP quantify leakage about the selected scalar X, not the complete
+   medication history, patient identity, or other sensitive attributes.
+
+3. The zk-SNARK result does not imply zero total leakage. The binary authorization
+   outcome is intentionally public and reveals whether X is at most 50 under the
+   fixed request and policy.
+
+4. Repeated requests with varying quantities, times, or thresholds could reveal
+   more information than this single-request, fixed-context experiment. Such an
+   adaptive or longitudinal observer is outside the current experiment.
+
+5. Side channels, including timing, network metadata, compromised patient devices,
+   and failures of cryptographic assumptions, are outside the evaluated model.
+
+6. The encrypted-database conclusion is observer-relative. It applies to a trusted
+   evaluator inside the decryption boundary. An external storage-only adversary
+   would have a different observable view and different privacy measurements.
+
+7. The reported MI and ASP values are empirical plug-in estimates. Additional
+   uncertainty analysis or bootstrap confidence intervals may be added if required
+   for the final manuscript.

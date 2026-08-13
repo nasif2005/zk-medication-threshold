@@ -1,0 +1,14 @@
+node_modules/
+legacy/
+**/build/
+**/results/artifacts/
+shared/ptau/
+*.wtns
+*.zkey
+*.r1cs
+*.wasm
+*.sym
+*.ptau
+evaluations.zip
+__pycache__/
+*.pyc

@@ -1,0 +1,175 @@
+SECTION 6.2.3 - COMPUTATIONAL OVERHEAD OF PRIVACY PRESERVATION
+============================================================
+
+1. PURPOSE
+----------
+
+This experiment compares the component-level online computation required by:
+
+1. a direct plaintext rolling-window threshold check and history update; and
+2. the proposed zk-SNARK hidden-state enforcement workflow.
+
+Its purpose is to quantify the computational cost paid for verifying threshold
+compliance and state-transition correctness without disclosing the prior history
+to the verifier. It is a processing-time comparison, not a privacy-metric
+experiment. ALI, MI, and ASP are evaluated separately in Section 6.3.
+
+
+2. FIXED COMPARISON WORKLOAD
+----------------------------
+
+Both implementations use the same logical medication workload:
+
+- bounded-history capacity k = 10;
+- Merkle-tree depth d = 2 for the zk-SNARK circuit;
+- q_current = 10 quantity units;
+- T_current = 100 time units;
+- m_q = 60 quantity units;
+- W = 30 time units;
+- prior quantities = [20, 15, 5, 0, 0, 0, 0, 0, 0, 0]; and
+- prior timestamps = [90, 80, 60, 0, 0, 0, 0, 0, 0, 0].
+
+The active interval is 70 < t_i <= 100. Quantities 20 and 15 are active, giving
+an active sum of 35; quantity 5 at time 60 is expired. The current request is
+authorized because 35 + 10 <= 60. The update replaces the expired entry with
+(10, 100).
+
+
+3. PLAINTEXT BASELINE
+---------------------
+
+The plaintext function operates directly on in-memory quantity and timestamp
+arrays. It:
+
+1. selects entries with a nonzero timestamp and age satisfying
+   0 <= T_current - t_i < W;
+2. sums the active quantities;
+3. rejects if active sum plus q_current exceeds m_q; and
+4. otherwise replaces the first empty or expired slot with the current event.
+
+The baseline function is executed 100,000 times inside each outer benchmark run.
+The elapsed time is divided by 100,000 to obtain a per-operation estimate. This
+batching is necessary because an individual plaintext operation completes in only
+a few microseconds.
+
+
+4. ZK-SNARK WORKFLOW
+--------------------
+
+The zk workflow reuses the built d = 2, k = 10 circuit and fixed valid input from
+Section 6.2.2. Each run separately measures:
+
+1. witness generation;
+2. Groth16 proof generation; and
+3. Groth16 proof verification.
+
+The proof relation performs more than the plaintext threshold calculation. It also
+attests to predecessor-state commitment reconstruction, medication-history
+classification, patient-medication binding, threshold compliance, overwrite-slot
+eligibility, successor-state correctness, nullifier derivation, and Merkle
+membership without revealing the private witness.
+
+Two aggregate times are calculated:
+
+    T_prover = T_witness + T_prove
+
+    T_end_to_end = T_witness + T_prove + T_verify
+
+
+5. MEASUREMENT PROCEDURE
+------------------------
+
+The experiment performs five unrecorded warm-ups followed by thirty measured
+runs. Within each outer run it measures the batched plaintext baseline and one
+complete zk witness/prove/verify sequence. Timing uses Python's high-resolution
+performance counter.
+
+The saved environment identifies a Linux 6.8 x86-64 platform, 30 measured runs,
+5 warm-ups, and 100,000 plaintext iterations per run. The manuscript describes
+the environment as a Google Cloud e2-standard-4 VM with four vCPUs and 16 GB RAM,
+Ubuntu 22.04.5 LTS, Circom 2.2.3, Node.js 20.20.2, and SnarkJS 0.7.6.
+
+Circuit compilation, Powers-of-Tau processing, and Groth16 proving-key generation
+are excluded as one-time preprocessing costs.
+
+
+6. RESULTS
+----------
+
+Mean and sample standard deviation over 30 recorded runs:
+
+Operation                         Mean (ms)       Sample SD (ms)
+--------------------------------  --------------  --------------
+Plaintext threshold/update        0.002450        0.000033
+ZK witness generation             130.839         6.089
+ZK proof generation               3573.535        20.611
+ZK proof verification             634.701         9.920
+ZK total prover                   3704.374        22.891
+ZK end-to-end                     4339.075        27.581
+
+Proof generation represents approximately 82.4 percent of measured zk end-to-end
+processing. Relative to the microsecond plaintext operation, total prover time is
+approximately 1.51 million times larger and zk end-to-end processing is
+approximately 1.77 million times larger.
+
+Because multiplicative ratios against a microsecond baseline can appear extreme,
+the absolute interpretation is more useful: the evaluated configuration requires
+approximately 3.704 seconds of prover computation and 4.339 seconds including
+verification.
+
+
+7. COMPARISON BOUNDARY
+----------------------
+
+The two implementations do not perform identical internal operations. The
+plaintext baseline directly evaluates and updates disclosed arrays. The zk system
+additionally creates and verifies a cryptographic attestation of authenticated
+hidden-state membership and transition correctness. The measurements therefore
+quantify component-level overhead for obtaining those cryptographic properties;
+they are not an end-to-end comparison of complete deployment architectures.
+
+Despite the directory's historical name, the script does not implement or time a
+trusted encrypted-database architecture. Any comparative table using these results
+must mark encrypted-database latency as not measured unless a separate baseline is
+implemented and executed.
+
+
+8. REPRODUCTION
+---------------
+
+The Section 6.2.2 depth-2 build and input must already exist. Run:
+
+    python3 scripts/benchmark_overhead.py --runs 30 --warmups 5 \
+        --baseline-iterations 100000
+
+The script fails if the input, WebAssembly circuit, witness generator, proving key,
+or verification key is missing.
+
+
+9. OUTPUTS
+----------
+
+- results/raw_measurements.csv:
+  per-run plaintext, witness, proving, verification, aggregate, and overhead data.
+- results/summary.csv:
+  mean, sample standard deviation, median, minimum, and maximum.
+- results/environment.json:
+  platform, run counts, batching count, and zk configuration.
+- results/artifacts/run_*/:
+  generated zk witnesses, proofs, and public inputs.
+
+
+10. INTERPRETATION AND LIMITATIONS
+----------------------------------
+
+The experiment repeatedly measures one deterministic successful request. Repeated
+runs characterize execution-time variation; they are not independent medication
+histories and cannot be used to estimate mutual information or adversary success
+probability.
+
+The benchmark excludes network communication, persistent storage, encryption and
+database access, concurrent workloads, state-publication latency, service
+orchestration, cache-policy analysis, user interfaces, and institutional
+integration. It also does not evaluate rejected requests. The results should be
+reported as local cryptographic-processing overhead under controlled synthetic
+conditions, not production healthcare latency.

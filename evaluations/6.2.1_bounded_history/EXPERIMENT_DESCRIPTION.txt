@@ -1,0 +1,178 @@
+SECTION 6.2.1 - EFFECT OF BOUNDED-HISTORY CAPACITY
+=================================================
+
+1. PURPOSE
+----------
+
+This experiment measures how the bounded private-history capacity k affects the
+size and online execution cost of the proposed Groth16 medication-threshold
+state-transition circuit. It isolates k by holding the Merkle-tree depth, policy,
+request, and logical workload fixed while compiling separate circuits for
+k = 10, 15, and 20.
+
+
+2. INDEPENDENT AND DEPENDENT VARIABLES
+--------------------------------------
+
+Independent variable:
+
+    k in {10, 15, 20}
+
+Dependent variables:
+
+- compiled R1CS constraint count;
+- number of private and public inputs;
+- witness-generation latency;
+- Groth16 proof-generation latency;
+- Groth16 proof-verification latency; and
+- total prover latency, defined as witness plus proof generation.
+
+Merkle-tree depth is fixed at d = 2.
+
+
+3. FIXED MEDICATION WORKLOAD
+----------------------------
+
+Every configuration uses the same policy and request values:
+
+- q_current = 10 quantity units
+- T_current = 100 time units
+- m_q = 60 quantity units
+- W = 30 time units
+- medication identifier = 42
+
+An event is active when 70 < t_i <= 100. Each prior history begins with:
+
+    quantities: [20, 15, 5]
+    timestamps: [90, 80, 60]
+
+The first two events are active, giving a prior active sum of 35. The third event
+is expired. All remaining positions up to capacity k are canonical empty entries
+(0, 0). The current request is valid because 35 + 10 <= 60.
+
+The expired entry at index 2 is replaced with (10, 100) in the successor state.
+Thus, every configuration exercises active/expired classification, rolling-window
+aggregation, overwrite-slot eligibility, predecessor commitment reconstruction,
+successor commitment construction, nullifier derivation, and Merkle membership.
+
+Only the number of additional empty history slots changes with k.
+
+
+4. CIRCUIT AND CRYPTOGRAPHIC OPERATIONS
+---------------------------------------
+
+The Circom relation checks:
+
+1. reconstruction of the predecessor state commitment;
+2. binding between the patient-medication tag and medication identifier;
+3. temporal classification of all k history entries;
+4. aggregation of active quantities;
+5. compliance of the current request with the threshold;
+6. eligibility of the selected empty or expired overwrite slot;
+7. correctness of the successor history and commitment;
+8. derivation of the predecessor nullifier; and
+9. membership of the predecessor commitment in the public Merkle root.
+
+Groth16 is instantiated over the BN128 curve. Each k value has a separate compiled
+circuit, WebAssembly witness generator, proving key, and verification key.
+
+
+5. CIRCUIT SIZE
+---------------
+
+Configuration   Constraints   Private inputs   Public inputs
+--------------  ------------  ---------------  -------------
+k = 10          26,716        50               8
+k = 15          37,686        70               8
+k = 20          48,656        90               8
+
+Increasing k from 10 to 20 adds 21,940 constraints, an increase of approximately
+82.1 percent. Public-input count remains fixed because additional history entries
+are private witness values.
+
+
+6. MEASUREMENT PROCEDURE
+------------------------
+
+For each k configuration, the benchmark performs:
+
+1. five unrecorded warm-up executions;
+2. thirty recorded executions;
+3. witness generation in a fresh Node.js command;
+4. Groth16 proof generation in a fresh SnarkJS command; and
+5. Groth16 proof verification in a fresh SnarkJS command.
+
+Elapsed wall-clock time is measured using Python's high-resolution performance
+counter. All proof and public-input artifacts are preserved by configuration and
+run number. Circuit compilation, Powers-of-Tau processing, and proving-key
+generation are treated as one-time preprocessing and excluded from online latency.
+
+The saved environment reports Ubuntu/Linux on x86-64, Python 3.10.12, 30 measured
+runs, and 5 warm-ups. The manuscript additionally identifies the host as a Google
+Cloud e2-standard-4 virtual machine with four vCPUs and 16 GB RAM, using Circom
+2.2.3, Node.js 20.20.2, and SnarkJS 0.7.6.
+
+
+7. RESULTS
+----------
+
+Mean latencies over 30 measured runs:
+
+k       Witness (s)   Prove (s)   Verify (s)   Total prover (s)
+------  ------------  ----------  -----------  ----------------
+10      0.1280        3.5441      0.6261       3.6721
+15      0.4165        5.3074      0.6380       5.7238
+20      0.4070        5.8595      0.6306       6.2665
+
+From k = 10 to k = 20, mean proof-generation time rises by approximately 65.3
+percent and mean total prover time rises by approximately 70.7 percent. Verification
+remains close to 0.63 seconds because Groth16 uses a constant-size proof and the
+public-input structure does not change.
+
+The k = 15 witness and proof measurements show greater variation than the other
+configurations. Therefore, the supplied summary includes standard deviation,
+median, minimum, and maximum in addition to the arithmetic mean.
+
+
+8. REPRODUCTION
+---------------
+
+The scripts are intended to be run after installing the pinned Node dependencies.
+First build all circuit variants with scripts/build_variants.sh, then run:
+
+    python3 scripts/benchmark_variants.py --runs 30 --warmups 5
+
+The benchmark fails if a required input, WebAssembly circuit, witness generator,
+proving key, or verification key is missing.
+
+
+9. OUTPUTS
+----------
+
+- inputs/k10_valid.json, k15_valid.json, k20_valid.json:
+  deterministic valid circuit inputs.
+- build/k*/r1cs_info.txt:
+  circuit-size and input-count information.
+- results/raw_measurements.csv:
+  every recorded timing observation.
+- results/summary.csv:
+  mean, sample standard deviation, median, minimum, and maximum.
+- results/environment.json:
+  execution environment and run counts.
+- results/artifacts/k*/run_*/:
+  witnesses, proofs, and public inputs for individual runs.
+
+
+10. INTERPRETATION AND LIMITATIONS
+----------------------------------
+
+The results characterize component-level cryptographic processing for one valid,
+deterministic synthetic workload. They isolate capacity-related circuit cost but
+do not measure differences among clinical history distributions. The observed
+witness timings are not strictly monotonic, although circuit constraints and mean
+proof-generation cost increase with k.
+
+The experiment excludes compilation, trusted setup, network communication,
+persistent production storage, concurrency, user-interface processing, service
+orchestration, and institutional integration. It should not be interpreted as an
+end-to-end healthcare deployment benchmark.
