@@ -1,0 +1,48 @@
+{
+  "workload": "C:\\Users\\nasif\\Documents\\Paper 5 implementation\\github_update\\zk-medication-threshold\\evaluations\\6.3_privacy_quantification\\workload\\shared_histories.csv",
+  "performance_source": "C:\\Users\\nasif\\Documents\\Paper 5 implementation\\github_update\\zk-medication-threshold\\evaluations\\6.2.3_privacy_overhead\\results\\summary.csv",
+  "x_min": 0,
+  "x_max": 95,
+  "x_distinct": 91,
+  "authorized": 8628,
+  "rejected": 1372,
+  "metrics": [
+    {
+      "architecture": "centralized_plaintext",
+      "ali_scalar_direct_disclosure": 1,
+      "mutual_information_bits": 5.718815201134127,
+      "expected_asp": 1.0,
+      "prior_asp": 0.1679,
+      "asp_advantage": 0.8321000000000001,
+      "h_x_bits": 5.718815201134127,
+      "samples": 10000
+    },
+    {
+      "architecture": "trusted_encrypted_database",
+      "ali_scalar_direct_disclosure": 1,
+      "mutual_information_bits": 5.718815201134127,
+      "expected_asp": 1.0,
+      "prior_asp": 0.1679,
+      "asp_advantage": 0.8321000000000001,
+      "h_x_bits": 5.718815201134127,
+      "samples": 10000
+    },
+    {
+      "architecture": "zk_snark_hidden_state",
+      "ali_scalar_direct_disclosure": 0,
+      "mutual_information_bits": 0.5768586277412998,
+      "expected_asp": 0.1785,
+      "prior_asp": 0.1679,
+      "asp_advantage": 0.010599999999999998,
+      "h_x_bits": 5.718815201134127,
+      "samples": 10000
+    }
+  ],
+  "notes": [
+    "ALI uses a scalar-level exact-disclosure unit for X.",
+    "The trusted encrypted-database adversary is inside the decryption boundary.",
+    "The zk view includes fixed public request/policy inputs and the authorization outcome.",
+    "Cryptographic encodings are excluded from categorical MI estimation.",
+    "Trusted encrypted-database latency was not measured in Section 6.2.3 and is not imputed."
+  ]
+}

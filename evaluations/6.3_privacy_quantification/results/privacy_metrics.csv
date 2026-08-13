@@ -1,0 +1,4 @@
+architecture,ali_scalar_direct_disclosure,mutual_information_bits,expected_asp,prior_asp,asp_advantage,h_x_bits,samples
+centralized_plaintext,1,5.718815201134127,1.0,0.1679,0.8321000000000001,5.718815201134127,10000
+trusted_encrypted_database,1,5.718815201134127,1.0,0.1679,0.8321000000000001,5.718815201134127,10000
+zk_snark_hidden_state,0,0.5768586277412998,0.1785,0.1679,0.010599999999999998,5.718815201134127,10000

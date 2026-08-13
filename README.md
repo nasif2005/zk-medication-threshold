@@ -1,16 +1,20 @@
-# Privacy-Preserving Medication Threshold Enforcement
+# Medication Threshold Evaluation Package
 
-This repository contains the simulation code and evaluation artifacts for the paper:
+This directory contains the reproducible evaluation materials for *A Privacy-Preserving Cryptographic Framework for Medication Threshold Enforcement*.
 
-**A Privacy-Preserving Cryptographic Framework for Medication Threshold Enforcement**
+## Active materials
 
-The framework evaluates medication-dispensing threshold compliance over a patient’s private bounded history using commitments, Merkle inclusion proofs, nullifiers, and zk-SNARK-based state-transition verification.
+- `evaluations/6.2.1_bounded_history/` — bounded-history-size experiment (`k = 10, 15, 20`).
+- `evaluations/6.2.2_merkle_depth/` — Merkle-tree-depth experiment (`d = 2, 4, 8, 16`).
+- `evaluations/6.2.3_privacy_overhead/` — privacy-overhead experiment.
+- `shared/` — shared trusted setup and environment information.
 
-## Repository Structure
+Each evaluation directory keeps its circuits or scripts, generated build artefacts where required, raw measurements, and summary results together.
 
-```text
-zk-medication-threshold/
-├── 6.2.1_EFFECT_OF_BOUNDED_HISTORY_SIZE_k/
-├── 6.2.2_EFFECT_OF_MERKLE_TREE_DEPTH/
-├── 6.2.3_COMPUTATIONAL_OVERHEAD_OF_PRIVACY_PRESERVATION/
-└── SETUP/
+## Rebuilding dependencies
+
+`node_modules/` is deliberately excluded because it is generated from `package.json` and `package-lock.json`. Run `npm install` in this directory before rebuilding or rerunning an experiment.
+
+## Legacy snapshot
+
+`legacy/root_legacy_snapshot/` holds superseded prototypes, old build outputs, duplicate setup files, and earlier layouts moved out of the active working area. It is retained for traceability and is not part of the current evaluation package.

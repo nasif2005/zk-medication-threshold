@@ -1,0 +1,14 @@
+{
+  "seed": 20260813,
+  "samples": 10000,
+  "parameters": {
+    "k": 10,
+    "q_current": 10,
+    "t_current": 100,
+    "m_q": 60,
+    "window": 30,
+    "medication_id": 42
+  },
+  "sensitive_variable": "sum(q_i * 1[t_current-window < t_i <= t_current])",
+  "workload": "C:\\Users\\nasif\\Documents\\Paper 5 implementation\\github_update\\zk-medication-threshold\\evaluations\\6.3_privacy_quantification\\workload\\shared_histories.csv"
+}

@@ -1,0 +1,153 @@
+SECTION 6.2.2 - EFFECT OF MERKLE-TREE DEPTH
+==========================================
+
+1. PURPOSE
+----------
+
+This experiment measures how private Merkle authentication-path depth d affects
+the circuit size and online latency of the proposed Groth16 state-transition proof.
+It holds bounded-history capacity and the complete medication-policy workload fixed
+while varying d across 2, 4, 8, and 16.
+
+
+2. INDEPENDENT AND DEPENDENT VARIABLES
+--------------------------------------
+
+Independent variable:
+
+    d in {2, 4, 8, 16}
+
+These depths support up to 2^d committed leaves: 4, 16, 256, and 65,536.
+
+Dependent variables:
+
+- R1CS constraint count;
+- witness-generation latency;
+- Groth16 proof-generation latency;
+- proof-verification latency; and
+- total prover latency.
+
+Bounded-history capacity is fixed at k = 10.
+
+
+3. FIXED WORKLOAD
+-----------------
+
+Every depth uses:
+
+- q_current = 10 quantity units
+- T_current = 100 time units
+- m_q = 60 quantity units
+- W = 30 time units
+- medication identifier = 42
+- prior quantities = [20, 15, 5, 0, 0, 0, 0, 0, 0, 0]
+- prior timestamps = [90, 80, 60, 0, 0, 0, 0, 0, 0, 0]
+
+The active interval is 70 < t_i <= 100. The active prior sum is 35, the entry
+(5, 60) is expired, and the request is valid because 35 + 10 <= 60. The expired
+slot is replaced with (10, 100).
+
+For every d, the generator creates exactly d sibling elements and d direction
+bits and derives the corresponding public root from the same predecessor
+commitment. Thus, Merkle depth is the only experimental variable.
+
+
+4. EFFECT OF DEPTH ON THE RELATION
+----------------------------------
+
+Every authentication-path level adds private path information and circuit logic
+for sibling selection, a direction-bit constraint, and a Poseidon hash. The path
+remains private, and the verifier receives only the resulting public root.
+
+Configuration   Constraints   Private inputs   Public inputs
+--------------  ------------  ---------------  -------------
+d = 2           26,716        50               8
+d = 4           27,756        54               8
+d = 8           29,836        62               8
+d = 16          33,996        78               8
+
+Increasing depth from 2 to 16 adds 7,280 constraints, or approximately 27.2
+percent. The public-input count remains eight.
+
+
+5. MEASUREMENT PROCEDURE
+------------------------
+
+Separate circuit variants are built for all four depths. Each configuration is
+executed for five unrecorded warm-up runs followed by thirty recorded runs. Every
+execution measures, in separate commands:
+
+1. WebAssembly witness generation;
+2. SnarkJS Groth16 proof generation; and
+3. SnarkJS Groth16 proof verification.
+
+Total prover latency is witness plus proof-generation time. Compilation and
+Groth16 parameter generation are excluded as one-time preprocessing. Witnesses,
+proofs, and public-input arrays are retained for traceability.
+
+The saved environment identifies Linux 6.8 on x86-64, 30 measured runs, and 5
+warm-ups. The manuscript describes the test host as a Google Cloud e2-standard-4
+VM with four vCPUs and 16 GB RAM, running Ubuntu 22.04.5 LTS, Circom 2.2.3,
+Node.js 20.20.2, and SnarkJS 0.7.6.
+
+
+6. RESULTS
+----------
+
+Mean latencies over 30 measured runs:
+
+Depth   Witness (s)   Prove (s)   Verify (s)   Total prover (s)
+------  ------------  ----------  -----------  ----------------
+2       0.1316        3.6588      0.6575       3.7904
+4       0.1320        3.6647      0.6421       3.7967
+8       0.1364        3.7986      0.6447       3.9350
+16      0.4214        5.0643      0.6372       5.4857
+
+From d = 2 to d = 16, mean proof-generation latency rises approximately 38.4
+percent and mean total prover latency rises approximately 44.7 percent. The small
+difference between depths 2 and 4 indicates little added online cost for modest
+registry growth in this workload. The larger increase at depth 16 reflects the
+larger private authentication-path computation.
+
+Verification remains approximately 0.64 to 0.66 seconds. This is consistent with
+Groth16 verification over a constant-size proof and a fixed public-input tuple;
+private path elements do not directly enlarge the verifier's public input.
+
+
+7. REPRODUCTION
+---------------
+
+Build the depth-specific circuits using scripts/build_variants.sh and run:
+
+    python3 scripts/benchmark_variants.py --runs 30 --warmups 5
+
+The benchmark checks that each input, WebAssembly circuit, witness generator,
+proving key, and verification key exists before measurements begin.
+
+
+8. OUTPUTS
+----------
+
+- inputs/d2_valid.json, d4_valid.json, d8_valid.json, d16_valid.json:
+  deterministic valid inputs and authentication paths.
+- build/d*/r1cs_info.txt:
+  constraint and input counts.
+- results/raw_measurements.csv:
+  all recorded observations.
+- results/summary.csv:
+  mean, sample standard deviation, median, minimum, and maximum.
+- results/environment.json:
+  platform and run configuration.
+- results/artifacts/d*/run_*/:
+  generated witnesses, proofs, and public inputs.
+
+
+9. INTERPRETATION AND LIMITATIONS
+---------------------------------
+
+This experiment isolates Merkle-depth cost using a single deterministic valid
+history. It measures cryptographic components rather than a complete deployment.
+Results exclude compilation, trusted setup, network transmission, persistent
+storage, concurrent requests, state-publication delay, time synchronization,
+service orchestration, and institutional integration. Tree capacity describes the
+number of supported leaves, not measured concurrent users or throughput.
