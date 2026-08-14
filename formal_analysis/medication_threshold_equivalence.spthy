@@ -1,0 +1,63 @@
+theory Medication_Threshold_Equivalence
+begin
+
+/*
+ * Single-request conditional history indistinguishability.
+ *
+ * The two worlds contain different private medication histories, active-window
+ * aggregates, and state randomness.  They expose the same public request,
+ * policy, time, Merkle root, nullifier, successor commitment, and authorization
+ * result.  The proof constructor is private and has no destructor, representing
+ * an ideal randomized zero-knowledge proof whose witness cannot be extracted.
+ */
+
+functions:
+    ideal_zkproof/3 [private]
+
+restriction SingleExperiment:
+    "All #i #j.
+       EquivalenceExperiment() @ #i & EquivalenceExperiment() @ #j
+       ==> #i = #j"
+
+rule Publish_Equivalent_Public_View:
+    let
+        witness =
+            < diff(~history0, ~history1),
+              diff(~aggregate0, ~aggregate1),
+              diff(~state_randomness0, ~state_randomness1) >
+
+        statement =
+            < ~request,
+              ~policy,
+              ~current_time,
+              ~merkle_root,
+              ~nullifier,
+              ~successor_commitment,
+              'authorized' >
+
+        proof = ideal_zkproof(witness, statement, ~proof_randomness)
+    in
+    [ Fr(~history0)
+    , Fr(~history1)
+    , Fr(~aggregate0)
+    , Fr(~aggregate1)
+    , Fr(~state_randomness0)
+    , Fr(~state_randomness1)
+    , Fr(~proof_randomness)
+    , Fr(~request)
+    , Fr(~policy)
+    , Fr(~current_time)
+    , Fr(~merkle_root)
+    , Fr(~nullifier)
+    , Fr(~successor_commitment)
+    ]
+  --[ EquivalenceExperiment()
+    , PublicOutcome('authorized')
+    ]->
+    [ Out(<statement, proof>)
+    , Out(<statement, 'accepted'>)
+    ]
+
+/* In --diff mode Tamarin automatically adds Observational_equivalence. */
+
+end

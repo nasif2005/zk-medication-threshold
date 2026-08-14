@@ -1,0 +1,150 @@
+theory Medication_Threshold_Privacy
+begin
+
+/*
+ * Privacy model for a single medication-threshold request.
+ *
+ * The left and right systems use different private histories, active-window
+ * aggregates, and state randomness, but expose the same permitted public
+ * statement and the same authorization outcome.  The zk-SNARK is modeled as
+ * an ideal randomized zero-knowledge proof: verification reveals only whether
+ * the proof is valid for its public statement and has no witness extractor.
+ *
+ * Analyze trace lemmas normally and analyze history indistinguishability with
+ * Tamarin's --diff mode.  This model does not prove Groth16, circuit, Merkle,
+ * commitment, or implementation security.
+ */
+
+functions:
+    zkproof/3,
+    verifyzk/2,
+    ok/0
+
+equations:
+    verifyzk(zkproof(witness, statement, proof_randomness), statement) = ok
+
+
+/* Allow equality checks in protocol rules. */
+restriction Equality:
+    "All x y #i. Eq(x,y) @ #i ==> x = y"
+
+
+/* Keep the initial equivalence experiment to one request. */
+restriction SinglePrivacyExperiment:
+    "All #i #j.
+       PrivacyExperiment() @ #i & PrivacyExperiment() @ #j
+       ==> #i = #j"
+
+
+/*
+ * Generate two possible private worlds.
+ *
+ * LHS private witness: history0, aggregate0, state_randomness0
+ * RHS private witness: history1, aggregate1, state_randomness1
+ *
+ * The public values are intentionally identical in both worlds.  This states
+ * the conditional privacy property: histories are compared only when request,
+ * policy, time, Merkle root, nullifier, successor commitment, and decision are
+ * the same.  The authorization decision is intentionally public.
+ */
+rule Publish_Privacy_Preserving_Request:
+    let
+        private_witness =
+            < diff(~history0, ~history1),
+              diff(~aggregate0, ~aggregate1),
+              diff(~state_randomness0, ~state_randomness1) >
+
+        public_statement =
+            < ~request,
+              ~policy,
+              ~current_time,
+              ~merkle_root,
+              ~nullifier,
+              ~successor_commitment,
+              'authorized' >
+
+        proof = zkproof(private_witness, public_statement, ~proof_randomness)
+    in
+    [ Fr(~history0)
+    , Fr(~history1)
+    , Fr(~aggregate0)
+    , Fr(~aggregate1)
+    , Fr(~state_randomness0)
+    , Fr(~state_randomness1)
+    , Fr(~proof_randomness)
+    , Fr(~request)
+    , Fr(~policy)
+    , Fr(~current_time)
+    , Fr(~merkle_root)
+    , Fr(~nullifier)
+    , Fr(~successor_commitment)
+    ]
+  --[ PrivacyExperiment()
+    , PrivateHistory(diff(~history0, ~history1))
+    , PrivateAggregate(diff(~aggregate0, ~aggregate1))
+    , PrivateStateRandomness(diff(~state_randomness0, ~state_randomness1))
+    , ProofPublished(public_statement, proof)
+    , AuthorizationDisclosed('authorized')
+    ]->
+    [ Out(<public_statement, proof>)
+    , PendingVerification(public_statement, proof)
+    ]
+
+
+/* The MEA verifies the proof against only the public statement. */
+rule MEA_Verify_Proof:
+    [ PendingVerification(public_statement, proof) ]
+  --[ Eq(verifyzk(proof, public_statement), ok)
+    , ProofAccepted(public_statement)
+    ]->
+    [ Out(<public_statement, 'accepted'>) ]
+
+
+/* Sanity checks showing that the intended protocol execution exists. */
+lemma executable_publication:
+    exists-trace
+    "Ex statement proof #i.
+       ProofPublished(statement, proof) @ #i"
+
+lemma executable_verification:
+    exists-trace
+    "Ex statement #i.
+       ProofAccepted(statement) @ #i"
+
+
+/* The attacker must not derive any selected private witness component. */
+lemma medication_history_secrecy:
+    all-traces
+    "All history #i.
+       PrivateHistory(history) @ #i
+       ==> not (Ex #j. K(history) @ #j)"
+
+lemma active_aggregate_secrecy:
+    all-traces
+    "All aggregate #i.
+       PrivateAggregate(aggregate) @ #i
+       ==> not (Ex #j. K(aggregate) @ #j)"
+
+lemma state_randomness_secrecy:
+    all-traces
+    "All randomness #i.
+       PrivateStateRandomness(randomness) @ #i
+       ==> not (Ex #j. K(randomness) @ #j)"
+
+
+/* Every accepted proof must originate from the modeled publication rule. */
+lemma accepted_proof_was_published:
+    all-traces
+    "All statement #i.
+       ProofAccepted(statement) @ #i
+       ==> (Ex proof #j.
+              ProofPublished(statement, proof) @ #j
+            & #j < #i)"
+
+
+/*
+ * No explicit equivalence lemma is required.  When this file is opened with
+ * --diff, Tamarin automatically generates the Observational_equivalence goal.
+ */
+
+end

@@ -1,0 +1,85 @@
+TAMARIN PRIVACY VERIFICATION RESULTS
+====================================
+
+Models
+------
+- medication_threshold_privacy.spthy
+  Trace-property model for executability, witness-component secrecy, and
+  accepted-proof origin.
+
+- medication_threshold_equivalence.spthy
+  Conditional single-request observational-equivalence model.
+
+
+Verification environment
+------------------------
+- Tamarin Prover: 1.11.0
+- Tamarin Git revision: 32705dd3717361574fc8dada786d4930a3b7ad29
+- Tamarin branch: develop (reported with uncommitted changes)
+- Maude: 2.7
+- Maude status: installation check OK, but version reported by Tamarin as
+  unsupported. Tamarin lists 2.7.1, 3.0, 3.1, 3.2.1, 3.2.2, 3.3, 3.3.1,
+  3.4, and 3.5 as supported versions.
+
+
+Trace-property results
+----------------------
+Property                              LHS result       RHS result
+-----------------------------------------------------------------
+executable_publication                verified (2)    verified (2)
+executable_verification               verified (3)    verified (3)
+medication_history_secrecy            verified (2)    verified (2)
+active_aggregate_secrecy              verified (2)    verified (2)
+state_randomness_secrecy              verified (2)    verified (2)
+accepted_proof_was_published          verified (3)    verified (3)
+
+Numbers in parentheses are Tamarin proof steps.
+
+
+Observational-equivalence result
+--------------------------------
+Model: medication_threshold_equivalence.spthy
+Well-formedness checks: successful
+Property: Observational_equivalence
+Result: verified
+Proof steps: 5,414
+Processing time: 271.63 seconds
+
+
+Interpretation
+--------------
+Under the modeled ideal randomized zero-knowledge-proof abstraction, Tamarin
+verified non-derivability of the private medication history, active-window
+aggregate, and state randomness in both privacy worlds. It also verified
+executability of proof publication and MEA verification and confirmed that an
+accepted proof originated from the modeled publication rule.
+
+The equivalence theory verified that two distinct private witnesses are
+observationally equivalent when they expose the same modeled public request,
+policy, time, Merkle root, nullifier, successor commitment, and authorization
+outcome.
+
+
+Scope and limitations
+---------------------
+- The equivalence result is conditional on identical permitted public outputs.
+- The equivalence experiment models one request.
+- The zk-SNARK is represented as an ideal opaque randomized proof constructor.
+- The analysis does not prove Groth16 zero knowledge or soundness, Circom
+  circuit correctness, rolling-window arithmetic, Merkle correctness,
+  commitment security, implementation security, adaptive multi-request
+  privacy, or resistance to timing and other side channels.
+- Privacy across different public nullifiers, commitments, policy contexts, or
+  authorization outcomes is not claimed.
+
+
+Commands used
+-------------
+Trace lemmas were proved individually with commands of the form:
+
+  tamarin-prover --diff --prove=<lemma_name> medication_threshold_privacy.spthy
+
+The clean equivalence proof used:
+
+  tamarin-prover --diff --prove medication_threshold_equivalence.spthy
+
